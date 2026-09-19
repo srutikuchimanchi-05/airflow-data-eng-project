@@ -1,0 +1,7 @@
+logs/
+plugins/
+dags/weather.db
+__pycache__/
+*.pyc
+.env
+config/
