@@ -46,6 +46,15 @@ This follows a standard data engineering pattern: separating the **raw zone** (u
 
 Both pipelines' core transformation logic is covered by unit tests (`tests/test_pipelines.py`), testing the pure data-cleaning functions independently of Airflow itself. A GitHub Actions workflow (`.github/workflows/tests.yml`) runs these tests automatically on every push to `main`.
 
+## Dashboard
+
+An interactive Tableau dashboard (`US_Hospital_Quality_Dashboard.twbx`) visualizes the pipeline's output:
+- A US map showing average hospital rating by state, with a parameter to switch the metric to hospital count instead
+- A breakdown of hospitals by ownership type
+- Summary KPI tiles: total hospitals, national average rating, and states covered
+
+To view it, download the file and open it with [Tableau Desktop](https://www.tableau.com/products/desktop) or the free [Tableau Reader](https://www.tableau.com/products/reader).
+
 ## Running it locally
 
 1. Clone this repo
