@@ -42,6 +42,10 @@ This follows a standard data engineering pattern: separating the **raw zone** (u
 | Local structured storage | SQLite |
 | Language | Python (requests, boto3, google-cloud-bigquery) |
 
+## Testing & CI
+
+Both pipelines' core transformation logic is covered by unit tests (`tests/test_pipelines.py`), testing the pure data-cleaning functions independently of Airflow itself. A GitHub Actions workflow (`.github/workflows/tests.yml`) runs these tests automatically on every push to `main`.
+
 ## Running it locally
 
 1. Clone this repo
