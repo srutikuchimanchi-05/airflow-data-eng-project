@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: dim_hospital
+    columns:
+      - name: facility_id
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_condition
+    columns:
+      - name: measure_name
+        tests:
+          - unique
+          - not_null
+
+  - name: fact_hospital_readmissions
+    columns:
+      - name: facility_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_hospital')
+              field: facility_id
+      - name: overall_rating
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4, 5]
+              quote: false
+      - name: excess_readmission_ratio
+        tests:
+          - not_null
