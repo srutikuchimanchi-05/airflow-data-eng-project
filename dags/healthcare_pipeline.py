@@ -97,6 +97,30 @@ def extract_hospital_data(**context):
     context['ti'].xcom_push(key='raw_hospital_data', value=combined_data)
     print(f"Extracted {len(all_results)} hospital records across {offset // page_size} pages")
 
+def extract_readmissions_data(**context):
+    """Pull hospital readmissions data from the CMS API, paginating through all records."""
+    all_results = []
+    offset = 0
+    page_size = 500
+
+    while True:
+        response = requests.get(READMISSIONS_API_URL, params={"limit": page_size, "offset": offset})
+        response.raise_for_status()
+        data = response.json()
+        page_results = data.get('results', [])
+
+        if not page_results:
+            break
+
+        all_results.extend(page_results)
+        offset += page_size
+
+        if len(page_results) < page_size:
+            break
+
+    combined_data = {'results': all_results}
+    context['ti'].xcom_push(key='raw_readmissions_data', value=combined_data)
+    print(f"Extracted {len(all_results)} readmission records across {offset // page_size} pages")
 
 def land_raw_data_in_minio(**context):
     """Upload the untouched raw API response into MinIO's raw zone."""
@@ -121,6 +145,29 @@ def land_raw_data_in_minio(**context):
     context['ti'].xcom_push(key='minio_object_key', value=object_key)
     print(f"Landed raw data at s3://{MINIO_BUCKET}/{object_key}")
 
+def land_readmissions_in_minio(**context):
+    """Upload the untouched raw readmissions API response into MinIO's raw zone."""
+    raw_data = context['ti'].xcom_pull(key='raw_readmissions_data', task_ids='extract_readmissions_data')
+
+    s3_client = boto3.client(
+        's3',
+        endpoint_url=MINIO_ENDPOINT,
+        aws_access_key_id=MINIO_ACCESS_KEY,
+        aws_secret_access_key=MINIO_SECRET_KEY,
+    )
+
+    run_date = context['ds']
+    object_key = f"raw/readmissions_data_{run_date}.json"
+
+    s3_client.put_object(
+        Bucket=MINIO_BUCKET,
+        Key=object_key,
+        Body=json.dumps(raw_data),
+    )
+
+    context['ti'].xcom_push(key='minio_readmissions_object_key', value=object_key)
+    print(f"Landed raw readmissions data at s3://{MINIO_BUCKET}/{object_key}")
+
 def transform_hospital_data(**context):
     """Clean the raw hospital data and compute state-level aggregates."""
     raw_data = context['ti'].xcom_pull(key='raw_hospital_data', task_ids='extract_hospital_data')
@@ -132,6 +179,18 @@ def transform_hospital_data(**context):
     context['ti'].xcom_push(key='cleaned_records', value=cleaned_records)
     context['ti'].xcom_push(key='valid_records', value=valid_records)
     print(f"Transformed {len(cleaned_records)} records, {len(valid_records)} have valid ratings")
+
+def transform_readmissions_data(**context):
+    """Clean the raw readmissions data."""
+    raw_data = context['ti'].xcom_pull(key='raw_readmissions_data', task_ids='extract_readmissions_data')
+    records = raw_data.get('results', raw_data if isinstance(raw_data, list) else [])
+
+    cleaned_records = [clean_readmission_record(r) for r in records]
+    valid_records = [r for r in cleaned_records if is_valid_readmission_record(r)]
+
+    context['ti'].xcom_push(key='cleaned_readmission_records', value=cleaned_records)
+    context['ti'].xcom_push(key='valid_readmission_records', value=valid_records)
+    print(f"Transformed {len(cleaned_records)} readmission records, {len(valid_records)} are valid")
 
 def load_to_bigquery(**context):
     """Load the cleaned hospital records into a BigQuery table."""
@@ -178,14 +237,55 @@ def load_to_bigquery(**context):
 
     print(f"Loaded {len(valid_records)} records into BigQuery")
 
+def load_readmissions_to_bigquery(**context):
+    """Load the cleaned readmissions records into a BigQuery table."""
+    valid_records = context['ti'].xcom_pull(key='valid_readmission_records', task_ids='transform_readmissions_data')
+
+    client = bigquery.Client(project=GCP_PROJECT_ID)
+    dataset_ref = client.dataset(BQ_DATASET)
+
+    table_ref = dataset_ref.table('hospital_readmissions')
+
+    schema = [
+        bigquery.SchemaField("facility_id", "STRING"),
+        bigquery.SchemaField("measure_name", "STRING"),
+        bigquery.SchemaField("excess_readmission_ratio", "FLOAT"),
+        bigquery.SchemaField("predicted_readmission_rate", "FLOAT"),
+        bigquery.SchemaField("expected_readmission_rate", "FLOAT"),
+        bigquery.SchemaField("start_date", "STRING"),
+        bigquery.SchemaField("end_date", "STRING"),
+    ]
+
+    try:
+        client.get_table(table_ref)
+    except Exception:
+        table = bigquery.Table(table_ref, schema=schema)
+        client.create_table(table)
+        print("Created table hospital_readmissions")
+
+    job_config = bigquery.LoadJobConfig(
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+        schema=schema,
+    )
+
+    load_job = client.load_table_from_json(
+        valid_records,
+        table_ref,
+        job_config=job_config,
+    )
+    load_job.result()
+
+    print(f"Loaded {len(valid_records)} readmission records into BigQuery")
+
 with DAG(
     dag_id="healthcare_pipeline",
     schedule="@daily",
     start_date=datetime(2026, 9, 1),
     catchup=False,
-    tags=["learning", "healthcare", "project2"],
+    tags=["learning", "healthcare", "project2", "project3"],
 ) as dag:
 
+    # --- Hospital ratings branch ---
     extract_task = PythonOperator(
         task_id="extract_hospital_data",
         python_callable=extract_hospital_data,
@@ -206,4 +306,27 @@ with DAG(
         python_callable=load_to_bigquery,
     )
 
+    # --- Readmissions branch ---
+    extract_readmissions_task = PythonOperator(
+        task_id="extract_readmissions_data",
+        python_callable=extract_readmissions_data,
+    )
+
+    land_readmissions_task = PythonOperator(
+        task_id="land_readmissions_in_minio",
+        python_callable=land_readmissions_in_minio,
+    )
+
+    transform_readmissions_task = PythonOperator(
+        task_id="transform_readmissions_data",
+        python_callable=transform_readmissions_data,
+    )
+
+    load_readmissions_task = PythonOperator(
+        task_id="load_readmissions_to_bigquery",
+        python_callable=load_readmissions_to_bigquery,
+    )
+
+    # Both branches run independently in parallel, since they don't depend on each other
     extract_task >> land_task >> transform_task >> load_task
+    extract_readmissions_task >> land_readmissions_task >> transform_readmissions_task >> load_readmissions_task
