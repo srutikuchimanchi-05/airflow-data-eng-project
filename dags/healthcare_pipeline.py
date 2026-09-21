@@ -107,7 +107,7 @@ def load_to_bigquery(**context):
         client.create_table(table)
         print(f"Created table {BQ_TABLE}")
 
-        job_config = bigquery.LoadJobConfig(
+    job_config = bigquery.LoadJobConfig(
         write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
     )
 
