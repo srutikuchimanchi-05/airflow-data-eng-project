@@ -1,27 +1,46 @@
-# Airflow Weather ETL Pipeline
+# Data Engineering Portfolio: Airflow Pipelines
 
-A simple end-to-end data pipeline built with Apache Airflow, orchestrated in Docker and running in a GitHub Codespace. This is a fundamentals project built to learn core data engineering concepts: extraction, transformation, loading, and scheduling.
+Two end-to-end data pipelines built with Apache Airflow, demonstrating orchestration, cloud storage, and cloud data warehousing. Both run in a GitHub Codespace using Docker Compose.
 
-## What it does
+## Project 1: Weather ETL Pipeline
 
-The pipeline runs automatically every hour and:
+A fundamentals pipeline that runs hourly:
 
-1. **Extracts** current weather data (temperature, windspeed, timestamp) for the Chicago area from the free Open-Meteo API
-2. **Transforms** the raw API response into a clean, minimal record
-3. **Loads** the cleaned record into a local SQLite database, appending a new row on every run
+1. **Extracts** current weather data for the Chicago area from the free Open-Meteo API
+2. **Transforms** the raw response into a clean, minimal record
+3. **Loads** it into a local SQLite database
 
-## Stack
+**Stack:** Apache Airflow, Python, SQLite
 
-- **Apache Airflow 3.3.2** — orchestration, scheduling, and monitoring
-- **Docker Compose** — runs Airflow's webserver, scheduler, worker, triggerer, Postgres (metadata store), and Redis (message broker)
-- **Python** — pipeline logic (urllib, json, sqlite3)
-- **SQLite** — lightweight local data store for pipeline output
+**DAG:** `dags/weather_pipeline.py`
 
-## Pipeline structure
+## Project 2: Healthcare Data Pipeline
 
-extract_weather >> transform_weather >> load_weather
+A more advanced pipeline that runs daily, modeling a real cloud data engineering workflow:
 
-Each task passes data to the next using Airflow XComs. The DAG is defined in `dags/weather_pipeline.py`.
+1. **Extracts** hospital quality data from the CMS (Centers for Medicare & Medicaid Services) public API
+2. **Lands the raw, untouched data** in MinIO, an S3-compatible object store, preserving the original API response before any transformation
+3. **Transforms** the data with Python: selects relevant fields, filters out records missing a valid rating
+4. **Loads** the cleaned data into Google BigQuery (Sandbox mode) as a queryable table
+
+**Stack:** Apache Airflow, Python, MinIO (S3-compatible storage), Google BigQuery, boto3, google-cloud-bigquery
+
+**DAG:** `dags/healthcare_pipeline.py`
+
+### Why this architecture
+
+This follows a standard data engineering pattern: separating the **raw zone** (untouched source data, preserved for reprocessing or auditing) from the **cleaned/modeled layer** (what analysts and dashboards actually query). If a transformation bug is found later, the pipeline can be corrected and rerun from the raw data without needing to re-call the source API.
+
+## Stack summary
+
+| Component | Tool |
+|---|---|
+| Orchestration | Apache Airflow 3.3.2 |
+| Containerization | Docker Compose |
+| Raw object storage | MinIO (S3-compatible) |
+| Data warehouse | Google BigQuery (Sandbox) |
+| Local structured storage | SQLite |
+| Language | Python (requests, boto3, google-cloud-bigquery) |
 
 ## Running it locally
 
