@@ -35,12 +35,29 @@ def is_valid_record(record):
     return bool(record.get('state')) and record.get('overall_rating') not in (None, 'Not Available')
 
 def extract_hospital_data(**context):
-    """Pull hospital general information from the CMS API."""
-    response = requests.get(CMS_API_URL, params={"limit": 6000})
-    response.raise_for_status()
-    data = response.json()
-    context['ti'].xcom_push(key='raw_hospital_data', value=data)
-    print(f"Extracted {len(data.get('results', []))} hospital records")
+    """Pull hospital general information from the CMS API, paginating through all records."""
+    all_results = []
+    offset = 0
+    page_size = 500
+
+    while True:
+        response = requests.get(CMS_API_URL, params={"limit": page_size, "offset": offset})
+        response.raise_for_status()
+        data = response.json()
+        page_results = data.get('results', [])
+
+        if not page_results:
+            break  # no more data, stop paginating
+
+        all_results.extend(page_results)
+        offset += page_size
+
+        if len(page_results) < page_size:
+            break  # last page was partial, we've reached the end
+
+    combined_data = {'results': all_results}
+    context['ti'].xcom_push(key='raw_hospital_data', value=combined_data)
+    print(f"Extracted {len(all_results)} hospital records across {offset // page_size} pages")
 
 
 def land_raw_data_in_minio(**context):
