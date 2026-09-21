@@ -23,16 +23,22 @@ CMS_API_URL = "https://data.cms.gov/provider-data/api/1/datastore/query/xubh-q36
 def clean_hospital_record(raw_record):
     """Pure function: shape one raw API record into our clean schema."""
     return {
+        'facility_id': raw_record.get('facility_id'),
         'facility_name': raw_record.get('facility_name'),
         'state': raw_record.get('state'),
         'ownership_type': raw_record.get('hospital_ownership'),
         'overall_rating': raw_record.get('hospital_overall_rating'),
     }
+    
 
 
 def is_valid_record(record):
     """Pure function: does this record have enough info to be useful?"""
-    return bool(record.get('state')) and record.get('overall_rating') not in (None, 'Not Available')
+    return (
+        bool(record.get('facility_id'))
+        and bool(record.get('state'))
+        and record.get('overall_rating') not in (None, 'Not Available')
+    )
 
 def extract_hospital_data(**context):
     """Pull hospital general information from the CMS API, paginating through all records."""
@@ -113,6 +119,7 @@ def load_to_bigquery(**context):
     table_ref = dataset_ref.table(BQ_TABLE)
 
     schema = [
+        bigquery.SchemaField("facility_id", "STRING"),
         bigquery.SchemaField("facility_name", "STRING"),
         bigquery.SchemaField("state", "STRING"),
         bigquery.SchemaField("ownership_type", "STRING"),

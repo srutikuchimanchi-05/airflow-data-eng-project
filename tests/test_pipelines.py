@@ -29,6 +29,7 @@ def test_clean_weather_record_extracts_correct_fields():
 
 def test_clean_hospital_record_maps_fields_correctly():
     raw_record = {
+        'facility_id': '010001',
         'facility_name': 'TEST HOSPITAL',
         'state': 'IL',
         'hospital_ownership': 'Voluntary non-profit',
@@ -36,6 +37,7 @@ def test_clean_hospital_record_maps_fields_correctly():
     }
     result = clean_hospital_record(raw_record)
 
+    assert result['facility_id'] == '010001'
     assert result['facility_name'] == 'TEST HOSPITAL'
     assert result['state'] == 'IL'
     assert result['ownership_type'] == 'Voluntary non-profit'
@@ -46,28 +48,32 @@ def test_clean_hospital_record_handles_missing_fields():
     raw_record = {'facility_name': 'INCOMPLETE HOSPITAL'}
     result = clean_hospital_record(raw_record)
 
+    assert result['facility_id'] is None
     assert result['facility_name'] == 'INCOMPLETE HOSPITAL'
     assert result['state'] is None
     assert result['overall_rating'] is None
 
 
 def test_is_valid_record_accepts_good_record():
-    record = {'state': 'IL', 'overall_rating': '4'}
+    record = {'facility_id': '010001', 'state': 'IL', 'overall_rating': '4'}
     assert is_valid_record(record) is True
 
 
 def test_is_valid_record_rejects_missing_state():
-    record = {'state': None, 'overall_rating': '4'}
+    record = {'facility_id': '010001', 'state': None, 'overall_rating': '4'}
     assert is_valid_record(record) is False
 
 
 def test_is_valid_record_rejects_not_available_rating():
-    record = {'state': 'IL', 'overall_rating': 'Not Available'}
+    record = {'facility_id': '010001', 'state': 'IL', 'overall_rating': 'Not Available'}
     assert is_valid_record(record) is False
 
 
 def test_is_valid_record_rejects_none_rating():
-    record = {'state': 'IL', 'overall_rating': None}
+    record = {'facility_id': '010001', 'state': 'IL', 'overall_rating': None}
     assert is_valid_record(record) is False
 
-    
+
+def test_is_valid_record_rejects_missing_facility_id():
+    record = {'facility_id': None, 'state': 'IL', 'overall_rating': '4'}
+    assert is_valid_record(record) is False
