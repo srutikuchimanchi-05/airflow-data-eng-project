@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime
+from airflow.operators.bash import BashOperator
 import requests
 import json
 import boto3
@@ -285,6 +286,15 @@ with DAG(
     tags=["learning", "healthcare", "project2", "project3"],
 ) as dag:
 
+    run_dbt_task = BashOperator(
+        task_id="run_dbt_models",
+        bash_command="cd /opt/airflow/dbt_project && dbt run",
+    )
+
+    test_dbt_task = BashOperator(
+        task_id="test_dbt_models",
+        bash_command="cd /opt/airflow/dbt_project && dbt test",
+    )
     # --- Hospital ratings branch ---
     extract_task = PythonOperator(
         task_id="extract_hospital_data",
@@ -327,6 +337,9 @@ with DAG(
         python_callable=load_readmissions_to_bigquery,
     )
 
-    # Both branches run independently in parallel, since they don't depend on each other
+       # Both branches run independently in parallel, since they don't depend on each other
     extract_task >> land_task >> transform_task >> load_task
     extract_readmissions_task >> land_readmissions_task >> transform_readmissions_task >> load_readmissions_task
+
+    # dbt models depend on both raw tables existing, so it waits for both branches to finish
+    [load_task, load_readmissions_task] >> run_dbt_task >> test_dbt_task
