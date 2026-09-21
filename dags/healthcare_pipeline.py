@@ -19,6 +19,8 @@ BQ_DATASET = "hospital_data"
 BQ_TABLE = "hospital_ratings"
 
 CMS_API_URL = "https://data.cms.gov/provider-data/api/1/datastore/query/xubh-q36u/0"
+READMISSIONS_API_URL = "https://data.cms.gov/provider-data/api/1/datastore/query/9n3s-kdb3/0"
+
 
 def clean_hospital_record(raw_record):
     """Pure function: shape one raw API record into our clean schema."""
@@ -29,7 +31,37 @@ def clean_hospital_record(raw_record):
         'ownership_type': raw_record.get('hospital_ownership'),
         'overall_rating': raw_record.get('hospital_overall_rating'),
     }
-    
+
+def clean_readmission_record(raw_record):
+    """Pure function: shape one raw readmissions record into our clean schema."""
+    return {
+        'facility_id': raw_record.get('facility_id'),
+        'measure_name': raw_record.get('measure_name'),
+        'excess_readmission_ratio': raw_record.get('excess_readmission_ratio'),
+        'predicted_readmission_rate': raw_record.get('predicted_readmission_rate'),
+        'expected_readmission_rate': raw_record.get('expected_readmission_rate'),
+        'start_date': raw_record.get('start_date'),
+        'end_date': raw_record.get('end_date'),
+    }
+
+
+def _is_number(value):
+    try:
+        float(value)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def is_valid_readmission_record(record):
+    """Pure function: is this readmission record usable for analysis?"""
+    ratio = record.get('excess_readmission_ratio')
+    return (
+        bool(record.get('facility_id'))
+        and bool(record.get('measure_name'))
+        and ratio not in (None, 'N/A', 'Not Available')
+        and _is_number(ratio)
+    )
 
 
 def is_valid_record(record):

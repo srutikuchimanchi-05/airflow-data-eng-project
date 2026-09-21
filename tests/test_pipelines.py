@@ -5,7 +5,12 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'dags'))
 
 from weather_pipeline import clean_weather_record
-from healthcare_pipeline import clean_hospital_record, is_valid_record
+from healthcare_pipeline import (
+    clean_hospital_record,
+    is_valid_record,
+    clean_readmission_record,
+    is_valid_readmission_record,
+)
 
 
 # --- Tests for weather_pipeline.py ---
@@ -77,3 +82,66 @@ def test_is_valid_record_rejects_none_rating():
 def test_is_valid_record_rejects_missing_facility_id():
     record = {'facility_id': None, 'state': 'IL', 'overall_rating': '4'}
     assert is_valid_record(record) is False
+
+# --- Tests for readmissions data ---
+
+def test_clean_readmission_record_maps_fields_correctly():
+    raw_record = {
+        'facility_id': '010001',
+        'measure_name': 'READM-30-HIP-KNEE-HRRP',
+        'excess_readmission_ratio': '0.9875',
+        'predicted_readmission_rate': '4.5734',
+        'expected_readmission_rate': '4.6311',
+        'start_date': '07/01/2021',
+        'end_date': '06/30/2024',
+    }
+    result = clean_readmission_record(raw_record)
+
+    assert result['facility_id'] == '010001'
+    assert result['measure_name'] == 'READM-30-HIP-KNEE-HRRP'
+    assert result['excess_readmission_ratio'] == '0.9875'
+
+
+def test_is_valid_readmission_record_accepts_good_record():
+    record = {
+        'facility_id': '010001',
+        'measure_name': 'READM-30-HIP-KNEE-HRRP',
+        'excess_readmission_ratio': '0.9875',
+    }
+    assert is_valid_readmission_record(record) is True
+
+
+def test_is_valid_readmission_record_rejects_missing_facility_id():
+    record = {
+        'facility_id': None,
+        'measure_name': 'READM-30-HIP-KNEE-HRRP',
+        'excess_readmission_ratio': '0.9875',
+    }
+    assert is_valid_readmission_record(record) is False
+
+
+def test_is_valid_readmission_record_rejects_missing_measure_name():
+    record = {
+        'facility_id': '010001',
+        'measure_name': None,
+        'excess_readmission_ratio': '0.9875',
+    }
+    assert is_valid_readmission_record(record) is False
+
+
+def test_is_valid_readmission_record_rejects_non_numeric_ratio():
+    record = {
+        'facility_id': '010001',
+        'measure_name': 'READM-30-HIP-KNEE-HRRP',
+        'excess_readmission_ratio': 'Too Few to Report',
+    }
+    assert is_valid_readmission_record(record) is False
+
+
+def test_is_valid_readmission_record_rejects_na_ratio():
+    record = {
+        'facility_id': '010001',
+        'measure_name': 'READM-30-HIP-KNEE-HRRP',
+        'excess_readmission_ratio': 'N/A',
+    }
+    assert is_valid_readmission_record(record) is False
