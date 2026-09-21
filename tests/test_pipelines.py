@@ -1,0 +1,73 @@
+import sys
+import os
+
+# Let this test file import from the dags/ folder
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'dags'))
+
+from weather_pipeline import clean_weather_record
+from healthcare_pipeline import clean_hospital_record, is_valid_record
+
+
+# --- Tests for weather_pipeline.py ---
+
+def test_clean_weather_record_extracts_correct_fields():
+    raw_data = {
+        'current_weather': {
+            'temperature': 22.5,
+            'windspeed': 10.2,
+            'time': '2026-09-21T12:00',
+        }
+    }
+    result = clean_weather_record(raw_data)
+
+    assert result['temperature_c'] == 22.5
+    assert result['windspeed_kmh'] == 10.2
+    assert result['observed_at'] == '2026-09-21T12:00'
+
+
+# --- Tests for healthcare_pipeline.py ---
+
+def test_clean_hospital_record_maps_fields_correctly():
+    raw_record = {
+        'facility_name': 'TEST HOSPITAL',
+        'state': 'IL',
+        'hospital_ownership': 'Voluntary non-profit',
+        'hospital_overall_rating': '4',
+    }
+    result = clean_hospital_record(raw_record)
+
+    assert result['facility_name'] == 'TEST HOSPITAL'
+    assert result['state'] == 'IL'
+    assert result['ownership_type'] == 'Voluntary non-profit'
+    assert result['overall_rating'] == '4'
+
+
+def test_clean_hospital_record_handles_missing_fields():
+    raw_record = {'facility_name': 'INCOMPLETE HOSPITAL'}
+    result = clean_hospital_record(raw_record)
+
+    assert result['facility_name'] == 'INCOMPLETE HOSPITAL'
+    assert result['state'] is None
+    assert result['overall_rating'] is None
+
+
+def test_is_valid_record_accepts_good_record():
+    record = {'state': 'IL', 'overall_rating': '4'}
+    assert is_valid_record(record) is True
+
+
+def test_is_valid_record_rejects_missing_state():
+    record = {'state': None, 'overall_rating': '4'}
+    assert is_valid_record(record) is False
+
+
+def test_is_valid_record_rejects_not_available_rating():
+    record = {'state': 'IL', 'overall_rating': 'Not Available'}
+    assert is_valid_record(record) is False
+
+
+def test_is_valid_record_rejects_none_rating():
+    record = {'state': 'IL', 'overall_rating': None}
+    assert is_valid_record(record) is False
+
+    

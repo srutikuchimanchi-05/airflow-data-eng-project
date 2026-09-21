@@ -5,6 +5,16 @@ import urllib.request
 import json
 import sqlite3
 
+
+def clean_weather_record(raw_weather_data):
+    """Pure function: shape the raw API response into our clean schema."""
+    current = raw_weather_data['current_weather']
+    return {
+        'temperature_c': current['temperature'],
+        'windspeed_kmh': current['windspeed'],
+        'observed_at': current['time'],
+    }
+
 # Step 1: EXTRACT — pull current weather for Chicago (near you) from a free public API
 def extract_weather(**context):
     url = "https://api.open-meteo.com/v1/forecast?latitude=41.85&longitude=-87.65&current_weather=true"
@@ -17,12 +27,7 @@ def extract_weather(**context):
 # Step 2: TRANSFORM — pull out just the fields we care about
 def transform_weather(**context):
     raw = context['ti'].xcom_pull(key='raw_weather', task_ids='extract_weather')
-    current = raw['current_weather']
-    cleaned = {
-        'temperature_c': current['temperature'],
-        'windspeed_kmh': current['windspeed'],
-        'observed_at': current['time'],
-    }
+    cleaned = clean_weather_record(raw)
     context['ti'].xcom_push(key='clean_weather', value=cleaned)
     print("Transformed:", cleaned)
 

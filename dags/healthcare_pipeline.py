@@ -20,6 +20,20 @@ BQ_TABLE = "hospital_ratings"
 
 CMS_API_URL = "https://data.cms.gov/provider-data/api/1/datastore/query/xubh-q36u/0"
 
+def clean_hospital_record(raw_record):
+    """Pure function: shape one raw API record into our clean schema."""
+    return {
+        'facility_name': raw_record.get('facility_name'),
+        'state': raw_record.get('state'),
+        'ownership_type': raw_record.get('hospital_ownership'),
+        'overall_rating': raw_record.get('hospital_overall_rating'),
+    }
+
+
+def is_valid_record(record):
+    """Pure function: does this record have enough info to be useful?"""
+    return bool(record.get('state')) and record.get('overall_rating') not in (None, 'Not Available')
+
 def extract_hospital_data(**context):
     """Pull hospital general information from the CMS API."""
     response = requests.get(CMS_API_URL, params={"limit": 500})
@@ -57,20 +71,8 @@ def transform_hospital_data(**context):
     raw_data = context['ti'].xcom_pull(key='raw_hospital_data', task_ids='extract_hospital_data')
     records = raw_data.get('results', raw_data if isinstance(raw_data, list) else [])
 
-    cleaned_records = []
-    for r in records:
-        cleaned_records.append({
-            'facility_name': r.get('facility_name'),
-            'state': r.get('state'),
-            'ownership_type': r.get('hospital_ownership'),
-            'overall_rating': r.get('hospital_overall_rating'),
-        })
-
-    # Filter out rows with no state or no rating (can't aggregate what's missing)
-    valid_records = [
-        r for r in cleaned_records
-        if r['state'] and r['overall_rating'] not in (None, 'Not Available')
-    ]
+    cleaned_records = [clean_hospital_record(r) for r in records]
+    valid_records = [r for r in cleaned_records if is_valid_record(r)]
 
     context['ti'].xcom_push(key='cleaned_records', value=cleaned_records)
     context['ti'].xcom_push(key='valid_records', value=valid_records)
