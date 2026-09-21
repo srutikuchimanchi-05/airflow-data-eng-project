@@ -6,3 +6,4 @@ __pycache__/
 .env
 config/
 gcp-credentials.json
+dbt_project/target/
