@@ -36,7 +36,7 @@ def is_valid_record(record):
 
 def extract_hospital_data(**context):
     """Pull hospital general information from the CMS API."""
-    response = requests.get(CMS_API_URL, params={"limit": 500})
+    response = requests.get(CMS_API_URL, params={"limit": 6000})
     response.raise_for_status()
     data = response.json()
     context['ti'].xcom_push(key='raw_hospital_data', value=data)
